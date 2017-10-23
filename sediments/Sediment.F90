@@ -500,7 +500,8 @@ contains
     ! VISCOSITY ASSUMED TO BE ISOTROPIC - maybe should be in normal direction to surface
     where (face_val_at_quad(viscosity, surface_element_list(i_ele), 1, 1) > 0.0)
        !d_star = d * ((R*g/(face_val_at_quad(viscosity, surface_element_list(i_ele), 1, 1)**2))**(1./3.))
-       d_star = 9.10345 !TEMPORARY CHANGE FOR MATT
+       d_star = 9.10345 !TEMPORARY CHANGE FOR MATT for 2D case
+       !d_star = 6.57471 !TEMPORARY CHANGE FOR MATT for 3D case
     elsewhere
        d_star = 0.0
     end where
