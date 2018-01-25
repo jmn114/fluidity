@@ -76,6 +76,8 @@ contains
     
     do_adapt_mesh = .false.
     
+    !if (current_time > 5) then
+
     do i = 1, 4
       select case(i)
         case(1)
@@ -115,6 +117,12 @@ contains
       end select
     end do
     
+    !else
+
+    !do_adapt_mesh = .false.
+
+    !end if
+
     if(do_adapt_mesh) then
       ewrite(2, *) "do_adapt_mesh returning .true."
     else

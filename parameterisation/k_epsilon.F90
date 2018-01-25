@@ -1333,6 +1333,8 @@ subroutine keps_bcs(state)
                   end do
               end do
 
+              !deallocate(vol_nodes)
+
            end if
         end if
      end do boundary_conditions
