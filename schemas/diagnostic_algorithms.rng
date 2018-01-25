@@ -2231,6 +2231,19 @@ a horizontal vector living on the specified surface.</a:documentation>
         <a:documentation>Smoothing length for bed level. Suggested at least equal to the element size on surface. </a:documentation>
         <ref name="real"/>
       </element>
+      <optional>
+        <element name="theta">
+          <a:documentation>Use a linear combination of the smoothed and unsmoothed values
+
+z = theta*z_smoothed + (1-theta)*z_original </a:documentation>
+          <ref name="real"/>
+        </element>
+      </optional>
+      <optional>
+        <element name="lump_mass">
+          <empty/>
+        </element>
+      </optional>
       <element name="solver">
         <ref name="linear_solver_options_sym"/>
       </element>

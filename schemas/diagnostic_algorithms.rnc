@@ -1633,6 +1633,15 @@ surface_elevation_smoothing_algorithm =
          element smoothing_length {
             real
          },
+         ## Use a linear combination of the smoothed and unsmoothed values
+ 	     ##
+ 	     ## z = theta*z_smoothed + (1-theta)*z_original 
+ 	     element theta {
+            real
+          }?,
+ 	     element lump_mass {
+ 	        empty
+ 	     }?,
          element solver {
             linear_solver_options_sym
          }

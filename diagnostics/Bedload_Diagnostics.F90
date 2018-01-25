@@ -737,7 +737,7 @@ contains
             !end do
         end do
 
-        do face = 1, face_count(source)
+        do face = 1, face_count(output)
         !!! face loop
 
         !!ewrite(1,*) 'JN - FACE:', face
@@ -754,7 +754,7 @@ contains
             !!ewrite(1,*) 'JN - NORMAL:', normal
             flux = sum(face_val_at_quad(source, face) * normal, dim=1)
             !! generate_element_rhs
-            call addto(rhs, face_global_nodes(source,face), get_div_face(face_loc(output,face)))
+            call addto(rhs, face_global_nodes(output,face), get_div_face(face_loc(output,face)))
             !!ewrite(1,*) 'JN - RHS VECTOR PLUS FACE CONTRIBUTION:', node_val(RHS, ele)
 
             !! build the lumped mass in the faces
@@ -819,7 +819,7 @@ contains
 
     end subroutine get_div
 
-    subroutine surface_elevation_smoothing(source, positions, output, smoothing_length, surface_ids, option_path)
+    subroutine surface_elevation_smoothing(source, positions, output, smoothing_length, surface_ids, option_path, lump_mass, theta)
     !!< Return a field containing:
     !!< w = zn+1 - zn / dt
     !!< where w is a grid velocity of the smoothed coordinate restricted to the surface and
@@ -831,6 +831,8 @@ contains
         real, intent(in) :: smoothing_length
         integer, dimension(:), intent(in) :: surface_ids
         character(len=*), optional, intent(in) :: option_path
+        logical, intent(in) :: lump_mass
+        real, intent(in) :: theta
 
         type(mesh_type) :: surface_mesh, source_surface_mesh, output_surface_mesh
 
@@ -843,6 +845,7 @@ contains
         type(vector_field) :: surface_positions
         type(scalar_field) :: surface_source, surface_elevation, surface_output
         real, dimension(mesh_dim(positions)) :: val
+        real :: sval
 
         call zero(output)
 
@@ -897,8 +900,8 @@ contains
         end do
 
         do i=1,size(source_surface_nodes)
-            val=node_val(source,source_surface_nodes(i))
-            call set(surface_source,i,val(mesh_dim(surface_mesh)))
+            sval=node_val(source,source_surface_nodes(i))
+            call set(surface_source,i,sval)
         end do
 
         if (present(option_path)) then
@@ -907,7 +910,7 @@ contains
             surface_output%option_path = output%option_path
         end if
 
-        call get_coordinate_smooth(surface_source,surface_positions,surface_elevation,surface_output,smoothing_length)
+        call get_coordinate_smooth(surface_source,surface_positions,surface_elevation,surface_output,smoothing_length, lump_mass, theta)
 
         do i=1,size(output_surface_nodes)
             call set(output,output_surface_nodes(i),node_val(surface_output,i))
@@ -928,12 +931,14 @@ contains
 
   end subroutine surface_elevation_smoothing
 
-  subroutine get_coordinate_smooth(source, positions, elevation, output, smoothing_length)
+  subroutine get_coordinate_smooth(source, positions, elevation, output, smoothing_length, lump_mass, theta)
 
         type(vector_field), intent(in) :: positions
         type(scalar_field), intent(in) :: source, elevation
         type(scalar_field), intent(inout) :: output
         real, intent(in) :: smoothing_length
+        logical, intent(in) :: lump_mass
+        real, intent(in) :: theta
 
         type(element_type), pointer :: shape
         integer, dimension(:), pointer :: nodes
@@ -950,6 +955,8 @@ contains
         !real, dimension(mesh_dim(positions), face_ngi(positions,1)) :: normal
         real, dimension(ele_loc(positions,1), ele_ngi(positions,1), mesh_dim(positions)) :: do_t
 
+        type(scalar_field) :: lumpedmass, inverse_lumpedmass
+
         sparsity = make_sparsity(output%mesh, output%mesh, "SparsityMat")
 
         call allocate(M, sparsity, name = "MassMat")
@@ -958,6 +965,12 @@ contains
         call zero(M)
         call zero(rhs)
         call zero(output)
+
+        if (lump_mass) then
+            call allocate(lumpedmass, output%mesh, "LumpedMass")
+            call allocate(inverse_lumpedmass, output%mesh, "InverseLumpedMass")
+            call zero(lumpedmass)
+        end if
 
         !!ewrite(1,*) 'JN - SOURCE DIM:', mesh_dim(source)
         !!ewrite(1,*) 'JN - POSITIONS DIM:', mesh_dim(positions)
@@ -981,11 +994,16 @@ contains
 
             call transform_to_physical(positions, ele, shape=shape, dshape=do_t, detwei=detwei)
             !! build the mass matrix
-            call addto(M,nodes,nodes,shape_shape(shape,shape,detwei)+((smoothing_length)**2)*dshape_dot_dshape(do_t,do_t,detwei))
+            if (.not. lump_mass) then
+                call addto(M,nodes,nodes,shape_shape(shape,shape,detwei)+((smoothing_length)**2)*dshape_dot_dshape(do_t,do_t,detwei))
+            end if
             !ewrite(1,*) 'JN - MASS MATRIX:', node_val(M, ele)
 
             !! generate element rhs
             call addto(rhs, nodes, get_coordinate_smooth_element(ele_loc(output,ele)))
+            if (lump_mass) then
+                call addto(lumpedmass, nodes, shape_rhs(shape,detwei))
+            end if
             !!ewrite(1,*) 'JN - RHS VECTOR:', node_val(RHS, ele)
 
         end do
@@ -1012,7 +1030,16 @@ contains
 
         !!end do
 
-        call petsc_solve(output,M,rhs)
+        if (lump_mass) then
+            call invert(lumpedmass, inverse_lumpedmass)
+            call set(output, rhs)
+            call scale(output, inverse_lumpedmass)
+
+            call deallocate(lumpedmass)
+            call deallocate(inverse_lumpedmass)
+        else
+            call petsc_solve(output,M,rhs)
+        end if
 
         call addto(output,elevation,-1.0)
 
@@ -1021,6 +1048,8 @@ contains
         else
             call scale(output, 1.0)
         end if
+
+        call set(output, output, source, theta)
 
         call deallocate(M)
         call deallocate(sparsity)

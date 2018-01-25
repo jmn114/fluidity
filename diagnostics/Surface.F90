@@ -180,7 +180,8 @@ subroutine calculate_surface_horizontal_divergence(state, s_field)
     character(len = OPTION_PATH_LEN) :: base_path
     integer, dimension(2) :: nsurface_ids
     integer, dimension(:), allocatable :: surface_ids
-    real :: smoothing_length
+    real :: smoothing_length, theta
+    logical :: lump_mass
 
     ewrite(1,*) "JN - In calculate_surface_elevation_smoothing"
 
@@ -194,10 +195,12 @@ subroutine calculate_surface_horizontal_divergence(state, s_field)
     allocate(surface_ids(nsurface_ids(1)))
     call get_option(trim(base_path) // "/surface_ids", surface_ids)
     call get_option(trim(base_path) // "/smoothing_length", smoothing_length, default=0.0)
+    lump_mass = have_option(trim(base_path) // "/lump_mass")
+    call get_option(trim(base_path) // "/theta", theta, default=theta)
 
     call surface_elevation_smoothing(source_field, positions, s_field,&
          smoothing_length, surface_ids = surface_ids,&
-         option_path=base_path)
+         option_path=base_path, lump_mass = lump_mass, theta = theta)
 
     deallocate(surface_ids)
 

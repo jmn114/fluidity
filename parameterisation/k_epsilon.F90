@@ -269,8 +269,6 @@ subroutine keps_calculate_rhs(state)
   character(len=FIELD_NAME_LEN), dimension(2) :: field_names
   character(len=FIELD_NAME_LEN) :: equation_type, implementation
 
-  type(vector_field) :: bc_value
-  integer, dimension(:,:), allocatable :: bc_type    
   logical :: dg_velocity, dg_keps, compressible, control_volumes
 
   integer                        :: wnode, nbcs, ii, j, jj
@@ -280,6 +278,7 @@ subroutine keps_calculate_rhs(state)
   integer, dimension(:), pointer :: surface_element_list
   type(scalar_field), pointer    :: field1, field2
   type(tensor_field), pointer    :: bg_visc
+  type(tensor_field) :: grad_u
 
   option_path = trim(state%option_path)//'/subgridscale_parameterisations/k-epsilon/'
 
@@ -312,8 +311,8 @@ subroutine keps_calculate_rhs(state)
 
   !! required for dg gradient calculation of u
   if(dg_velocity) then
-      allocate(bc_type(u%dim, 1:surface_element_count(u)))
-      call get_entire_boundary_condition(u, (/"weakdirichlet"/), bc_value, bc_type)
+      call allocate(grad_u, dim=[u%dim, u%dim], mesh = scalar_eddy_visc%mesh, name = "GradU")
+      call grad(u, x, grad_u)
   end if
 
   ! Depending on the equation type, extract the density or set it to some dummy field allocated above
@@ -391,17 +390,20 @@ subroutine keps_calculate_rhs(state)
        ! ele is owned.  For example, if ele is the only owned element on
        ! this process.  Hence we have to check for element ownership
        ! directly as well.
-       if (.not. dg_velocity.or.element_neighbour_owned(u, ele).or.element_owned(u, ele)) then !JN
-          if (control_volumes) then
-             call assemble_rhs_cv_ele(src_abs_terms, fields(i), fields(3-i), scalar_eddy_visc, u, & !JN             
-              density, buoyancy_density, have_buoyancy_turbulence, g, g_magnitude, multiphase, &
-              vfrac, x, f_1, f_2, ele, i, bc_value, bc_type, compressible)
-          else
-             call assemble_rhs_ele(src_abs_terms, fields(i), fields(3-i), scalar_eddy_visc, u, &
-              density, buoyancy_density, have_buoyancy_turbulence, g, g_magnitude, multiphase, &
-              vfrac, x, f_1, f_2, ele, i, bc_value, bc_type, compressible)
-          end if
-       end if !JN
+
+       !if (.not. dg_velocity.or.element_neighbour_owned(u, ele).or.element_owned(u, ele)) then !JN
+
+       if (control_volumes) then
+       call assemble_rhs_cv_ele(src_abs_terms, fields(i), fields(3-i), scalar_eddy_visc, u, & !JN
+       density, buoyancy_density, have_buoyancy_turbulence, g, g_magnitude, multiphase, &
+       vfrac, x, f_1, f_2, ele, i, compressible, grad_u)
+       else
+       call assemble_rhs_ele(src_abs_terms, fields(i), fields(3-i), scalar_eddy_visc, u, &
+       density, buoyancy_density, have_buoyancy_turbulence, g, g_magnitude, multiphase, &
+       vfrac, x, f_1, f_2, ele, i, compressible, grad_u)
+       end if
+
+       !end if !JN
      end do
 
      ! halo update to fill in halo_2 values with a dg velocity
@@ -557,10 +559,9 @@ subroutine keps_calculate_rhs(state)
 
   end do field_loop
   
-  !! deallocate velocity bc_type
+  !! deallocate gradient tensor
   if(dg_velocity) then
-      deallocate(bc_type)
-      call deallocate(bc_value)
+      call deallocate(grad_u)
   end if
   call deallocate(dummydensity)
   deallocate(dummydensity)
@@ -575,12 +576,13 @@ end subroutine keps_calculate_rhs
 
 subroutine assemble_rhs_cv_ele(src_abs_terms, k, eps, scalar_eddy_visc, u, density, &
      buoyancy_density, have_buoyancy_turbulence, g, g_magnitude, multiphase, vfrac, &
-     X, f_1, f_2, ele, field_id, bc_value, bc_type, compressible)
+     X, f_1, f_2, ele, field_id, compressible, grad_u_tensor)
 
   type(scalar_field), dimension(3), intent(inout) :: src_abs_terms
   type(scalar_field), intent(in) :: k, eps, scalar_eddy_visc, f_1, f_2, vfrac
   type(vector_field), intent(in) :: X, u, g
   type(scalar_field), intent(in) :: density, buoyancy_density
+  type(tensor_field), intent(in) :: grad_u_tensor
   real, intent(in) :: g_magnitude
   logical, intent(in) :: have_buoyancy_turbulence, multiphase
   integer, intent(in) :: ele, field_id
@@ -596,9 +598,6 @@ subroutine assemble_rhs_cv_ele(src_abs_terms, k, eps, scalar_eddy_visc, u, densi
   type(element_type), pointer :: shape, shape_u
   integer :: term, ngi, dim, gi, i
 
-  type(vector_field), intent(in) :: bc_value
-  integer, dimension(:,:), intent(in) :: bc_type    
-
   real, dimension(:, :, :), allocatable :: dshape_u
 
   ! For buoyancy turbulence stuff
@@ -612,24 +611,16 @@ subroutine assemble_rhs_cv_ele(src_abs_terms, k, eps, scalar_eddy_visc, u, densi
   nodes = ele_nodes(k, ele)
   ngi = ele_ngi(k, ele)
 
-  call transform_to_physical( X, ele, shape, dshape=dshape, detwei=detwei )
+  call transform_to_physical( X, ele, shape_u, dshape=dshape, detwei=detwei )
 
   ! get bounded values of k and epsilon for source terms
   ! this doesn't change the field values of k and epsilon
 
   ! Compute Reynolds stress
-  if(.not.(u%mesh%shape == k%mesh%shape)) then
-     shape_u => ele_shape(u, ele)
-     allocate(dshape_u(ele_loc(u, ele), ele_ngi(u, ele), X%dim))
-     call transform_to_physical( X, ele, shape_u, dshape=dshape_u )
-     grad_u = ele_grad_at_quad(u, ele, dshape_u)
-     deallocate(dshape_u)  
+  if(continuity(u)<0) then
+    grad_u = ele_val_at_quad(grad_u_tensor, ele)
   else
-     if(continuity(u)<0) then 
-        grad_u = dg_ele_grad_at_quad(u, ele, shape, X, bc_value, bc_type)
-     else
-        grad_u = ele_grad_at_quad(u, ele, dshape)
-     end if
+    grad_u = ele_grad_at_quad(u, ele, dshape)
   end if
 
   where (ele_val(scalar_eddy_visc,ele)>0) 
@@ -650,13 +641,13 @@ subroutine assemble_rhs_cv_ele(src_abs_terms, k, eps, scalar_eddy_visc, u, densi
   if(field_id==1) then
      rhs_addto(1,:) = ele_val(scalar_eddy_visc, ele)*rhs(1)&
           *sum(detwei)/ele_loc(k,ele)
-     rhs_addto(2,:) = gamma_cv*ele_val(density,ele)*sum(detwei)/ele_loc(k,ele)
+     rhs_addto(2,:) = gamma_cv*sum(detwei)/ele_loc(k,ele)
   else
      rhs_addto(1,:) = ele_val(scalar_eddy_visc, ele)*gamma_cv*rhs(1)&
           *model%c_eps_1*ele_val(f_1,ele)&
           *sum(detwei)/ele_loc(k,ele)
      rhs_addto(2,:) = model%c_eps_2*ele_val(f_2,ele)&
-          *gamma_cv*ele_val(density,ele)*sum(detwei)/ele_loc(k,ele)
+          *gamma_cv*sum(detwei)/ele_loc(k,ele)
   end if
   
   ! Gk:  
@@ -693,13 +684,10 @@ subroutine assemble_rhs_cv_ele(src_abs_terms, k, eps, scalar_eddy_visc, u, densi
           ! get components of velocity in direction of gravity and in other directions
           u_z = dot_product(g_quad(:, gi), u_quad(:, gi))
           u_xy = (norm2(u_quad(:, gi))**2.0 - u_z**2.0)**0.5
-          if (u_xy > fields_min) then
-             c_eps_3(gi) = tanh(u_z/u_xy) 
-          else
-             c_eps_3(gi) = 1.0
-          end if
+          c_eps_3(gi) = tanh(u_z/(1e-6 + u_xy))
        end do     
-       scalar = scalar*model%c_eps_1*ele_val(f_1,ele)*c_eps_3*ele_val(eps,ele)/ele_val(k, ele)
+       ewrite_minmax(c_eps_3)
+       scalar = scalar*model%c_eps_1*ele_val(f_1,ele)*c_eps_3*gamma_cv
     end if
 
     ! multiply by determinate weights, integrate and assign to rhs
@@ -724,12 +712,13 @@ end subroutine assemble_rhs_cv_ele
 
 subroutine assemble_rhs_ele(src_abs_terms, k, eps, scalar_eddy_visc, u, density, &
      buoyancy_density, have_buoyancy_turbulence, g, g_magnitude, multiphase, vfrac, &
-     X, f_1, f_2, ele, field_id, bc_value, bc_type, compressible)
+     X, f_1, f_2, ele, field_id, compressible, grad_u_tensor)
 
   type(scalar_field), dimension(3), intent(inout) :: src_abs_terms
   type(scalar_field), intent(in) :: k, eps, scalar_eddy_visc, f_1, f_2, vfrac
   type(vector_field), intent(in) :: X, u, g
   type(scalar_field), intent(in) :: density, buoyancy_density
+  type(tensor_field), intent(in) :: grad_u_tensor
   real, intent(in) :: g_magnitude
   logical, intent(in) :: have_buoyancy_turbulence, multiphase
   integer, intent(in) :: ele, field_id
@@ -745,9 +734,6 @@ subroutine assemble_rhs_ele(src_abs_terms, k, eps, scalar_eddy_visc, u, density,
   type(element_type), pointer :: shape, shape_u
   integer :: term, ngi, dim, gi, i
 
-  type(vector_field), intent(in) :: bc_value
-  integer, dimension(:,:), intent(in) :: bc_type    
-
   real, dimension(:, :, :), allocatable :: dshape_u
 
   ! For buoyancy turbulence stuff
@@ -760,7 +746,7 @@ subroutine assemble_rhs_ele(src_abs_terms, k, eps, scalar_eddy_visc, u, density,
   shape => ele_shape(k, ele)
   nodes = ele_nodes(k, ele)
 
-  call transform_to_physical( X, ele, shape, dshape=dshape, detwei=detwei )
+  call transform_to_physical( X, ele, shape_u, dshape=dshape, detwei=detwei )
 
   ! get bounded values of k and epsilon for source terms
   ! this doesn't change the field values of k and epsilon
@@ -773,21 +759,11 @@ subroutine assemble_rhs_ele(src_abs_terms, k, eps, scalar_eddy_visc, u, density,
   end do
 
   ! Compute Reynolds stress
-  if(.not.(u%mesh%shape == k%mesh%shape)) then
-     shape_u => ele_shape(u, ele)
-     allocate(dshape_u(ele_loc(u, ele), ele_ngi(u, ele), X%dim))
-     call transform_to_physical( X, ele, shape_u, dshape=dshape_u )
-     grad_u = ele_grad_at_quad(u, ele, dshape_u)
-     deallocate(dshape_u)  
+  if(continuity(u)<0) then
+    grad_u = ele_val_at_quad(grad_u_tensor, ele)
   else
-     !JN
-     if(continuity(u)<0) then 
-        grad_u = dg_ele_grad_at_quad(u, ele, shape, X, bc_value, bc_type)
-     else
-        grad_u = ele_grad_at_quad(u, ele, dshape)
-     end if
-     !JN     
-     !grad_u = 0.01 !JN
+    grad_u = ele_grad_at_quad(u, ele, dshape)
+    !grad_u = 0.01 !JN
   end if
 
   scalar_eddy_visc_ele = ele_val_at_quad(scalar_eddy_visc, ele)
@@ -871,13 +847,10 @@ subroutine assemble_rhs_ele(src_abs_terms, k, eps, scalar_eddy_visc, u, density,
           ! get components of velocity in direction of gravity and in other directions
           u_z = dot_product(g_quad(:, gi), u_quad(:, gi))
           u_xy = (norm2(u_quad(:, gi))**2.0 - u_z**2.0)**0.5
-          if (u_xy > fields_min) then
-             c_eps_3(gi) = tanh(u_z/u_xy) 
-          else
-             c_eps_3(gi) = 1.0
-          end if
-       end do     
-       scalar = scalar*model%c_eps_1*ele_val_at_quad(f_1,ele)*c_eps_3*eps_ele/k_ele
+          c_eps_3(gi) = tanh(u_z/(1e-6 + u_xy))
+       end do
+       ewrite_minmax(c_eps_3)
+       scalar = scalar*model%c_eps_1*ele_val_at_quad(f_1,ele)*c_eps_3*gamma_cv
     end if
 
     ! multiply by determinate weights, integrate and assign to rhs
@@ -1571,6 +1544,9 @@ subroutine keps_bcs(state)
                      endif
 
                      call set(surface_field, inode, eps_bc_val) !AMIN
+
+                     !deallocate(vol_nodes)
+                     !deallocate(vel_vol_nodes)
 
                   end do
               end do
