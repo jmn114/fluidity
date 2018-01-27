@@ -394,11 +394,11 @@ subroutine keps_calculate_rhs(state)
        !if (.not. dg_velocity.or.element_neighbour_owned(u, ele).or.element_owned(u, ele)) then !JN
 
        if (control_volumes) then
-       call assemble_rhs_cv_ele(src_abs_terms, fields(i), fields(3-i), scalar_eddy_visc, u, & !JN
+        call assemble_rhs_cv_ele(src_abs_terms, fields(i), fields(3-i), scalar_eddy_visc, u, & !JN
        density, buoyancy_density, have_buoyancy_turbulence, g, g_magnitude, multiphase, &
        vfrac, x, f_1, f_2, ele, i, compressible, grad_u)
        else
-       call assemble_rhs_ele(src_abs_terms, fields(i), fields(3-i), scalar_eddy_visc, u, &
+        call assemble_rhs_ele(src_abs_terms, fields(i), fields(3-i), scalar_eddy_visc, u, &
        density, buoyancy_density, have_buoyancy_turbulence, g, g_magnitude, multiphase, &
        vfrac, x, f_1, f_2, ele, i, compressible, grad_u)
        end if
@@ -608,6 +608,7 @@ subroutine assemble_rhs_cv_ele(src_abs_terms, k, eps, scalar_eddy_visc, u, densi
   real, dimension(:, :, :), allocatable :: dshape_density
 
   shape => ele_shape(k, ele)
+  shape_u => ele_shape(u, ele)
   nodes = ele_nodes(k, ele)
   ngi = ele_ngi(k, ele)
 
@@ -744,6 +745,7 @@ subroutine assemble_rhs_ele(src_abs_terms, k, eps, scalar_eddy_visc, u, density,
   real, dimension(:, :, :), allocatable :: dshape_density
 
   shape => ele_shape(k, ele)
+  shape_u => ele_shape(u, ele)
   nodes = ele_nodes(k, ele)
 
   call transform_to_physical( X, ele, shape_u, dshape=dshape, detwei=detwei )
