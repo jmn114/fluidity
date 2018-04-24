@@ -1654,9 +1654,9 @@ module field_derivatives
       end if
 
       ! only works if all pardiff fields are discontinuous:
-      do i=1, count(derivatives)
-        assert(pardiff(i)%mesh%continuity<0)
-      end do
+      !do i=1, count(derivatives)
+        !assert(pardiff(i)%mesh%continuity<0)
+      !end do
       
       ! calculate gradient
       do ele = 1, ele_count(infield)

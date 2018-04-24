@@ -62,24 +62,28 @@ contains
 
           type(state_type), intent(inout)           :: state
           type(mesh_type)                           :: surface_mesh
+          type(mesh_type)                           :: surface_mesh_coor
           type(scalar_field), pointer               :: sediment_field, evisc
           type(tensor_field), pointer               :: tvisc
           type(vector_field), pointer               :: x, bss
           type(vector_field), intent(inout)         :: v_field
           type(vector_field)                        :: bedload_flux_surface
 
-          integer, dimension(surface_element_count(v_field))    :: surface_elements
+          type(scalar_field) :: surface_elevation
+          type(vector_field) :: grad_elevation, surface_positions
+          integer, dimension(surface_element_count(v_field)) :: surface_elements
 
           integer                                   :: i, j, k, idx, n_sediment_fields, i_field,&
                                                        & stat, i_ele, snloc, sndim, sele, globnod, globnod_prev, globnod_next, globnod_visc
 
-          integer, dimension(:), pointer            :: surface_node_list, s_nodes, ele
+          integer, dimension(:), pointer            :: surface_node_list, surface_node_list_coor, s_nodes, ele
           integer, dimension(2)                     :: surface_id_count
           integer, dimension(:), allocatable        :: surface_ids, faceglobalnodes, faceglobalnodes_prev, faceglobalnodes_next, faceglobalnodes_visc
           real, dimension(:), allocatable           :: t_crit, q_star, q_aval, tvisc_val
           real                                      :: density, R, d, g, zevisc, d_star
           real                                      :: b, repose, q_aval_x, q_aval_y, acc_aval
           real, parameter                           :: PI = 4.D0*DATAN(1.D0)
+          real, dimension(3)                        :: val
           character(len = OPTION_PATH_LEN)          :: base_path
 
           ! Declarations for future development
@@ -153,6 +157,8 @@ contains
             call get_option(trim(base_path)//"/surface_ids", surface_ids)
             !ewrite(1,*) 'JN - SURFACE ID:', surface_ids
 
+            call zero(v_field)
+
             ! get the relevant surface elements
             idx=1
             do i = 1, surface_element_count(v_field)
@@ -166,14 +172,58 @@ contains
             call create_surface_mesh(surface_mesh, surface_node_list, &
                 & mesh=v_field%mesh, surface_elements=surface_elements(:idx-1), name='SurfaceMesh')
 
-            call allocate(bedload_flux_surface, v_field%dim, surface_mesh, name='BedloadRateSurface')
+            !call add_faces(surface_mesh)
 
+            call allocate(bedload_flux_surface, v_field%dim, surface_mesh, name='BedloadRateSurface')
             call zero(bedload_flux_surface)
 
-            call zero(v_field)
+            ewrite(1,*) 'JN - SURF ELEMENTS:', element_count(bedload_flux_surface)
+            ewrite(1,*) 'JN - SURF NODES:', node_count(bedload_flux_surface), surface_node_list
 
-            !ewrite(1,*) 'JN - SURF ELEMENTS:', element_count(bedload_flux_surface)
-            !ewrite(1,*) 'JN - SURF NODES:', surface_node_list
+            ! generate surface_mesh for calculation of gradient elevation for 3D avalanche direction
+            call create_surface_mesh(surface_mesh_coor, surface_node_list_coor, &
+                & x%mesh, surface_elements=surface_elements(:idx-1), name='CoordinateSurfaceMesh')
+
+            !call generate_surface_mesh_halos(surface_elevation%mesh, surface_mesh_coor, surface_node_list_coor)
+
+            !call add_faces(surface_mesh_coor, surface_mesh)
+
+            call allocate(surface_elevation,surface_mesh_coor,"Elevation")
+            call zero(surface_elevation)
+
+            call allocate(surface_positions,mesh_dim(surface_mesh_coor),surface_mesh_coor,"Coordinates")
+            call zero(surface_positions)
+
+            ewrite(1,*) 'JN - SURF NODES FOR COOR:', node_count(surface_elevation), node_count(surface_positions), surface_node_list_coor
+
+            do i=1,size(surface_node_list_coor)
+                val=node_val(x,surface_node_list_coor(i))
+                ewrite(1,*) 'JN - VAL SURF_ELEV:', val
+                call set(surface_elevation,i,val(mesh_dim(surface_mesh_coor)))
+            end do
+
+            ewrite(1,*) 'JN - NODE VAL SURF_POSITIONS:', node_val(surface_elevation, 1)
+
+            do i=1,size(surface_node_list_coor)
+                val=node_val(x,surface_node_list_coor(i))
+                call set(surface_positions,i,val(:mesh_dim(surface_mesh_coor)))
+            end do
+
+            ewrite(1,*) 'JN - NODE VAL SURF_POSITIONS:', node_val(surface_positions, 1)
+
+            ewrite(1,*) 'JN - HERE 1'
+
+            call allocate(grad_elevation, mesh_dim(surface_elevation), mesh = surface_elevation%mesh, name = "GradElevation")
+            call zero(grad_elevation)
+
+            ewrite(1,*) 'JN - HERE 2', mesh_dim(surface_elevation)
+            ewrite(1,*) 'JN - HERE 2', mesh_dim(surface_positions)
+            ewrite(1,*) 'JN - HERE 2', node_count(surface_positions)
+            ewrite(1,*) 'JN - HERE 2', mesh_dim(grad_elevation)
+            ewrite(1,*) 'JN - HERE 2', node_count(grad_elevation)
+
+            call grad(surface_elevation, surface_positions, grad_elevation)
+            !ewrite(1,*) 'JN - HERE 3:', node_val(grad_elevation, 1)
 
             ! calculate bedload flux
             ! loop through elements in surface field
@@ -323,7 +373,13 @@ contains
 
                     elseif (sndim == 3) then
 
-                        call avalanche_2d(state, i_ele, repose, x, v_field, surface_elements, b, q_aval_x, q_aval_y)
+                        !call avalanche_2d(state, i_ele, repose, x, v_field, surface_elements, b, q_aval_x, q_aval_y)
+                        call avalanche_3d(state, i_ele, repose, x, v_field, surface_elements, grad_elevation, b, q_aval_x, q_aval_y)
+
+                        if (tan(abs(b)) > tan(repose*PI/180)) then
+                        ewrite(1,*) 'JN - AVALANCHE_X IN BED FLUX:', q_aval_x
+                        ewrite(1,*) 'JN - AVALANCHE_Y IN BED FLUX:', q_aval_y
+                        end if
 
                     end if
 
@@ -426,7 +482,11 @@ contains
 
           call deallocate(bedload_flux_surface)
           call deallocate(surface_mesh)
-          deallocate(surface_ids)
+          call deallocate(surface_mesh_coor)
+          deallocate(surface_ids, surface_node_list, surface_node_list_coor)
+          call deallocate(surface_elevation)
+          call deallocate(surface_positions)
+          call deallocate(grad_elevation)
 
           end do sediment_fields
     
@@ -482,8 +542,8 @@ contains
         x1 = node_val(X, 1, faceglobalnodes(1))
         !x2 = node_val(X, 1, nl)
         !x1 = node_val(X, 1, nf)
-        !!ewrite(1,*) 'JN - X2:', x2
-        !!ewrite(1,*) 'JN - X1:', x1
+        !ewrite(1,*) 'JN - X2:', x2
+        !ewrite(1,*) 'JN - X1:', x1
 
         if (x2 > x1) then
 
@@ -551,6 +611,183 @@ contains
         deallocate(faceglobalnodes)
 
     end subroutine avalanche_2d
+
+    subroutine avalanche_3d(state, i_ele, repose, positions, v_field, surface_elements, grad_elevation, b, q_aval_x, q_aval_y)
+
+        type(state_type), intent(in) :: state
+        type(vector_field), intent(in) :: v_field
+        type(vector_field), pointer :: positions
+        type(vector_field) :: grad_elevation
+        !type(vector_field) :: surface_positions
+        !type(mesh_type) :: surface_mesh
+        !type(scalar_field) :: surface_elevation
+
+        integer :: i, idx, j, i_ele, sndim, snloc, globnod
+        integer, dimension(:), allocatable :: faceglobalnodes
+        integer, dimension(surface_element_count(v_field)) :: surface_elements
+        !integer, dimension(:), intent(in) :: surface_ids
+        !integer, dimension(:), pointer :: surface_nodes
+
+        !real, dimension(mesh_dim(positions)) :: val
+        real, dimension(:,:), allocatable :: t
+        real :: area, q_aval, repose, length
+        real, dimension(3) :: tx, ty
+        real, intent(out) :: b, q_aval_x, q_aval_y
+        real, parameter :: PI = 4.D0*DATAN(1.D0)
+
+        integer, parameter :: dim_num = 3
+        real :: normal(dim_num), p1(dim_num), p2(dim_num), p3(dim_num)
+
+        sndim = mesh_dim(positions)
+        !ewrite(1,*) 'JN - X DIMENSION:', sndim
+
+        snloc = face_loc(positions, 1)
+        !ewrite(1,*) 'JN - X NODES IN FACE ONE:', snloc
+
+        !sneloc = ele_loc(positions, 1)
+        !ewrite(1,*) 'JN - X NODES IN ELE ONE:', sneloc
+
+        !ewrite(1,*) 'JN - BSS ELEMENT:', i_ele
+        !ewrite(1,*) 'JN - V_FIELD SURF ELE:', surface_elements((i_ele))
+
+        ewrite(1,*) 'JN - COORDINATES:', node_val(positions, 1)
+
+        allocate(faceglobalnodes(1:snloc))
+        faceglobalnodes = face_global_nodes(positions, surface_elements(i_ele))
+
+        !do j = 1, snloc
+            !do i = 1, sndim
+                !globnod = faceglobalnodes(j)
+                !ewrite(1,*) 'JN - GLOBAL NODES:', globnod
+                ewrite(1,*) 'JN - GLOBAL NODES:', faceglobalnodes(1)
+                ewrite(1,*) 'JN - GLOBAL NODES:', faceglobalnodes(2)
+                ewrite(1,*) 'JN - GLOBAL NODES:', faceglobalnodes(3)
+                !ewrite(1,*) 'JN - COORDINATES:', node_val(positions, i, globnod)
+                !ewrite(1,*) 'JN - COORDINATES:', node_val(positions, globnod)
+                ewrite(1,*) 'JN - P1 COORDINATES:', node_val(positions, faceglobalnodes(1))
+                ewrite(1,*) 'JN - P2 COORDINATES:', node_val(positions, faceglobalnodes(2))
+                ewrite(1,*) 'JN - P3 COORDINATES:', node_val(positions, faceglobalnodes(3))
+                p1 = node_val(positions, faceglobalnodes(1))
+                p2 = node_val(positions, faceglobalnodes(2))
+                p3 = node_val(positions, faceglobalnodes(3))
+            !end do
+        !end do
+
+        call plane_normal_3d (p1, p2, p3, b, normal)
+        ewrite(1,*) 'JN - BOTTOM SLOPE RAD:', b
+
+        !call grad_elevation and get directions
+
+        ewrite(1,*) 'JN - HERE 4:', node_val(grad_elevation, 1)
+        ewrite(1,*) 'JN - HERE 4:', ele_val(grad_elevation, i_ele)
+
+        tx = ele_val(grad_elevation, 1, i_ele)
+        ewrite(1,*) 'JN - DIR_X:', tx
+        ewrite(1,*) 'JN - DIR_X NODE 1:', tx(1)
+        ewrite(1,*) 'JN - DIR_X NODE 2:', tx(2)
+
+        ty = ele_val(grad_elevation, 2, i_ele)
+        ewrite(1,*) 'JN - DIR_Y:', ty
+        ewrite(1,*) 'JN - DIR_Y NODE 1:', ty(1)
+        ewrite(1,*) 'JN - DIR_Y NODE 2:', ty(2)
+
+        !length = 1.0
+        ALLOCATE (t(dim_num, dim_num))
+        t = reshape((/ p1,p2,p3 /), (/ dim_num, dim_num /))
+        ewrite(1,*) 'JN - COOR ARRAY:', t
+        call triangle_area_3d (t, area)
+        ewrite(1,*) 'JN - TRIA AREA:', area
+        length = sqrt(area/0.433)
+        ewrite(1,*) 'JN - TRIA LENGTH:', length
+
+        if (tan(abs(b)) > tan(repose*PI/180)) then
+
+            q_aval = 0.5 * length**2 * (1 - 0.0) * ((tan(abs(b)) - tan(repose*PI/180))/cos(abs(b)))
+            ewrite(1,*) 'JN - AVALANCHE:', q_aval
+
+            q_aval_x = q_aval * tx(1)
+            !return
+            ewrite(1,*) 'JN - AVALANCHE_X:', q_aval_x
+
+            q_aval_y = q_aval * ty(1)
+            !return
+            ewrite(1,*) 'JN - AVALANCHE_Y:', q_aval_y
+
+        end if
+
+        deallocate(faceglobalnodes)
+
+        contains
+
+        subroutine plane_normal_3d (p1, p2, p3, b, normal)
+
+        real, intent(out) :: b
+        integer, parameter :: dim_num = 3
+        real :: normal(dim_num), normal_norm, p1(dim_num), p2(dim_num), p3(dim_num)
+
+        !
+        !  The cross product (P2-P1) x (P3-P1) is normal to (P2-P1) and (P3-P1).
+        !
+
+        ewrite(1,*) 'P1X:', p1(1)
+        ewrite(1,*) 'P1Y:', p1(2)
+        ewrite(1,*) 'P1Z:', p1(3)
+        ewrite(1,*) 'P2X:', p2(1)
+        ewrite(1,*) 'P2Y:', p2(2)
+        ewrite(1,*) 'P2Z:', p2(3)
+        ewrite(1,*) 'P3X:', p3(1)
+        ewrite(1,*) 'P3Y:', p3(2)
+        ewrite(1,*) 'P3Z:', p3(3)
+
+        normal(1) = ( p2(2) - p1(2) ) * ( p3(3) - p1(3) ) &
+                    - ( p2(3) - p1(3) ) * ( p3(2) - p1(2) )
+
+        ewrite(1,*) 'NX:', normal(1)
+
+        normal(2) = ( p2(3) - p1(3) ) * ( p3(1) - p1(1) ) &
+                    - ( p2(1) - p1(1) ) * ( p3(3) - p1(3) )
+
+        ewrite(1,*) 'NY:', normal(2)
+
+        normal(3) = ( p2(1) - p1(1) ) * ( p3(2) - p1(2) ) &
+                    - ( p2(2) - p1(2) ) * ( p3(1) - p1(1) )
+
+        ewrite(1,*) 'NZ:', normal(3)
+
+        normal_norm = sqrt ( sum ( normal(1:dim_num) ** 2 ) )
+
+        ewrite(1,*) 'absN:', normal_norm
+
+        !normal(1:dim_num) = normal(1:dim_num) / normal_norm
+
+        b = acos(abs(normal(3))/normal_norm)
+        !b = -1
+        !ewrite(1,*) 'ANGLE:', b
+
+        end subroutine plane_normal_3d
+
+        subroutine triangle_area_3d (t, area)
+
+        integer, parameter :: dim_num = 3
+        real, intent(out) :: area
+        real :: cross(dim_num), t(dim_num,3)
+        !
+        !  Compute the cross product vector.
+        !
+        cross(1) = ( t(2,2) - t(2,1) ) * ( t(3,3) - t(3,1) ) &
+                   - ( t(3,2) - t(3,1) ) * ( t(2,3) - t(2,1) )
+
+        cross(2) = ( t(3,2) - t(3,1) ) * ( t(1,3) - t(1,1) ) &
+                   - ( t(1,2) - t(1,1) ) * ( t(3,3) - t(3,1) )
+
+        cross(3) = ( t(1,2) - t(1,1) ) * ( t(2,3) - t(2,1) ) &
+                   - ( t(2,2) - t(2,1) ) * ( t(1,3) - t(1,1) )
+
+        area = 0.5 * sqrt ( sum ( cross(1:3) ** 2 ) )
+
+        end subroutine triangle_area_3d
+
+    end subroutine avalanche_3d
 
     subroutine surface_horizontal_divergence(source, positions, output, beta, smoothing_length, surface_ids, option_path)
     !!< Return a field containing:
