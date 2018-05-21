@@ -1,0 +1,1756 @@
+<?xml version='1.0' encoding='utf-8'?>
+<fluidity_options>
+  <simulation_name>
+    <string_value lines="1">bedload</string_value>
+  </simulation_name>
+  <problem_type>
+    <string_value lines="1">fluids</string_value>
+  </problem_type>
+  <geometry>
+    <dimension>
+      <integer_value rank="0">3</integer_value>
+    </dimension>
+    <mesh name="CoordinateMesh">
+      <from_file file_name="pipe_cuboid">
+        <format name="gmsh"/>
+        <stat>
+          <include_in_stat/>
+        </stat>
+      </from_file>
+    </mesh>
+    <mesh name="VelocityMesh">
+      <from_mesh>
+        <mesh name="CoordinateMesh"/>
+        <mesh_shape>
+          <polynomial_degree>
+            <integer_value rank="0">1</integer_value>
+          </polynomial_degree>
+        </mesh_shape>
+        <mesh_continuity>
+          <string_value>discontinuous</string_value>
+        </mesh_continuity>
+        <stat>
+          <exclude_from_stat/>
+        </stat>
+      </from_mesh>
+    </mesh>
+    <mesh name="PressureMesh">
+      <from_mesh>
+        <mesh name="CoordinateMesh"/>
+        <mesh_shape>
+          <polynomial_degree>
+            <integer_value rank="0">2</integer_value>
+          </polynomial_degree>
+        </mesh_shape>
+        <stat>
+          <exclude_from_stat/>
+        </stat>
+      </from_mesh>
+    </mesh>
+    <quadrature>
+      <degree>
+        <integer_value rank="0">8</integer_value>
+        <comment>4</comment>
+      </degree>
+    </quadrature>
+  </geometry>
+  <io>
+    <dump_format>
+      <string_value>vtk</string_value>
+    </dump_format>
+    <dump_period>
+      <python>
+        <string_value lines="20" type="code" language="python">def val(t):
+    if t &lt; 10:
+      #return 5.0
+      #return 0.2
+      return 0.0
+    #elif t &lt; 10:
+    #  return 0.5
+    else:
+      return 1.0
+      #return 10.0
+      #return 0.0</string_value>
+      </python>
+    </dump_period>
+    <output_mesh name="VelocityMesh"/>
+    <stat/>
+  </io>
+  <timestepping>
+    <current_time>
+      <real_value rank="0">0</real_value>
+      <time_units date="seconds since 1987-01-05 00:00.0"/>
+    </current_time>
+    <timestep>
+      <real_value rank="0">0.01</real_value>
+    </timestep>
+    <finish_time>
+      <real_value rank="0">600.0</real_value>
+    </finish_time>
+    <nonlinear_iterations>
+      <integer_value rank="0">2</integer_value>
+    </nonlinear_iterations>
+    <adaptive_timestep>
+      <requested_cfl>
+        <real_value rank="0">1.0</real_value>
+      </requested_cfl>
+      <courant_number name="CFLNumber">
+        <mesh name="CoordinateMesh"/>
+      </courant_number>
+      <maximum_timestep>
+        <real_value rank="0">0.01</real_value>
+      </maximum_timestep>
+      <increase_tolerance>
+        <real_value rank="0">1.1</real_value>
+      </increase_tolerance>
+    </adaptive_timestep>
+    <steady_state>
+      <tolerance>
+        <real_value rank="0">1.0e-5</real_value>
+        <infinity_norm/>
+      </tolerance>
+    </steady_state>
+  </timestepping>
+  <physical_parameters>
+    <gravity>
+      <magnitude>
+        <real_value rank="0">9.8</real_value>
+      </magnitude>
+      <vector_field name="GravityDirection" rank="1">
+        <prescribed>
+          <mesh name="CoordinateMesh"/>
+          <value name="WholeMesh">
+            <constant>
+              <real_value shape="3" dim1="dim" rank="1">0.0 0.0 -1.0</real_value>
+            </constant>
+          </value>
+          <output/>
+          <stat>
+            <include_in_stat/>
+          </stat>
+          <detectors>
+            <exclude_from_detectors/>
+          </detectors>
+        </prescribed>
+      </vector_field>
+    </gravity>
+  </physical_parameters>
+  <material_phase name="water">
+    <equation_of_state>
+      <fluids>
+        <linear>
+          <reference_density>
+            <real_value rank="0">1000.0</real_value>
+          </reference_density>
+        </linear>
+      </fluids>
+    </equation_of_state>
+    <subgridscale_parameterisations>
+      <k-epsilon>
+        <scalar_field name="TurbulentKineticEnergy" rank="0">
+          <prognostic>
+            <mesh name="CoordinateMesh"/>
+            <equation name="KEpsilon">
+              <density name="MaterialDensity"/>
+            </equation>
+            <spatial_discretisation>
+              <control_volumes>
+                <face_value name="FiniteElement">
+                  <limit_face_value>
+                    <limiter name="Sweby"/>
+                  </limit_face_value>
+                </face_value>
+                <diffusion_scheme name="ElementGradient"/>
+              </control_volumes>
+              <conservative_advection>
+                <real_value rank="0">0.0</real_value>
+              </conservative_advection>
+            </spatial_discretisation>
+            <temporal_discretisation>
+              <theta>
+                <real_value rank="0">1.0</real_value>
+              </theta>
+              <control_volumes>
+                <number_advection_iterations>
+                  <integer_value rank="0">3</integer_value>
+                </number_advection_iterations>
+              </control_volumes>
+            </temporal_discretisation>
+            <solver>
+              <iterative_method name="gmres">
+                <restart>
+                  <integer_value rank="0">30</integer_value>
+                </restart>
+              </iterative_method>
+              <preconditioner name="sor"/>
+              <relative_error>
+                <real_value rank="0">1.0e-7</real_value>
+              </relative_error>
+              <max_iterations>
+                <integer_value rank="0">1000</integer_value>
+              </max_iterations>
+              <never_ignore_solver_failures/>
+              <diagnostics>
+                <monitors/>
+              </diagnostics>
+            </solver>
+            <initial_condition name="WholeMesh">
+              <constant>
+                <real_value rank="0">0.0009375</real_value>
+              </constant>
+            </initial_condition>
+            <boundary_conditions name="Inflow">
+              <surface_ids>
+                <integer_value shape="1" rank="1">1</integer_value>
+              </surface_ids>
+              <type name="dirichlet">
+                <constant>
+                  <real_value rank="0">0.0009375</real_value>
+                </constant>
+              </type>
+            </boundary_conditions>
+            <boundary_conditions name="Bottom">
+              <surface_ids>
+                <integer_value shape="2" rank="1">5 6</integer_value>
+              </surface_ids>
+              <type name="k_epsilon">
+                <string_value>high_Re</string_value>
+              </type>
+            </boundary_conditions>
+            <tensor_field name="Diffusivity" rank="2">
+              <diagnostic>
+                <algorithm name="Internal" material_phase_support="multiple"/>
+                <output/>
+                <stat>
+                  <include_in_stat/>
+                </stat>
+              </diagnostic>
+            </tensor_field>
+            <scalar_field name="Source" rank="0">
+              <diagnostic>
+                <algorithm name="Internal" material_phase_support="multiple"/>
+                <output/>
+                <stat/>
+                <detectors>
+                  <include_in_detectors/>
+                </detectors>
+              </diagnostic>
+            </scalar_field>
+            <scalar_field name="Absorption" rank="0">
+              <diagnostic>
+                <algorithm name="Internal" material_phase_support="multiple"/>
+                <output/>
+                <stat/>
+                <detectors>
+                  <include_in_detectors/>
+                </detectors>
+              </diagnostic>
+            </scalar_field>
+            <output/>
+            <stat/>
+            <convergence>
+              <include_in_convergence/>
+            </convergence>
+            <detectors>
+              <include_in_detectors/>
+            </detectors>
+            <steady_state>
+              <include_in_steady_state/>
+            </steady_state>
+            <consistent_interpolation/>
+          </prognostic>
+        </scalar_field>
+        <scalar_field name="TurbulentDissipation" rank="0">
+          <prognostic>
+            <mesh name="CoordinateMesh"/>
+            <equation name="KEpsilon">
+              <density name="MaterialDensity"/>
+            </equation>
+            <spatial_discretisation>
+              <control_volumes>
+                <face_value name="FiniteElement">
+                  <limit_face_value>
+                    <limiter name="Sweby"/>
+                  </limit_face_value>
+                </face_value>
+                <diffusion_scheme name="ElementGradient"/>
+              </control_volumes>
+              <conservative_advection>
+                <real_value rank="0">0.0</real_value>
+              </conservative_advection>
+            </spatial_discretisation>
+            <temporal_discretisation>
+              <theta>
+                <real_value rank="0">1.0</real_value>
+              </theta>
+              <control_volumes>
+                <number_advection_iterations>
+                  <integer_value rank="0">3</integer_value>
+                </number_advection_iterations>
+              </control_volumes>
+            </temporal_discretisation>
+            <solver>
+              <iterative_method name="gmres">
+                <restart>
+                  <integer_value rank="0">30</integer_value>
+                </restart>
+              </iterative_method>
+              <preconditioner name="sor"/>
+              <relative_error>
+                <real_value rank="0">1.0e-7</real_value>
+              </relative_error>
+              <max_iterations>
+                <integer_value rank="0">1000</integer_value>
+              </max_iterations>
+              <never_ignore_solver_failures/>
+              <diagnostics>
+                <monitors/>
+              </diagnostics>
+            </solver>
+            <initial_condition name="WholeMesh">
+              <constant>
+                <real_value rank="0">0.00016845</real_value>
+              </constant>
+            </initial_condition>
+            <boundary_conditions name="Inflow">
+              <surface_ids>
+                <integer_value shape="1" rank="1">1</integer_value>
+              </surface_ids>
+              <type name="dirichlet">
+                <constant>
+                  <real_value rank="0">0.00016845</real_value>
+                </constant>
+              </type>
+            </boundary_conditions>
+            <boundary_conditions name="Bottom">
+              <surface_ids>
+                <integer_value shape="2" rank="1">5 6</integer_value>
+              </surface_ids>
+              <type name="k_epsilon">
+                <string_value>high_Re</string_value>
+              </type>
+            </boundary_conditions>
+            <tensor_field name="Diffusivity" rank="2">
+              <diagnostic>
+                <algorithm name="Internal" material_phase_support="multiple"/>
+                <output/>
+                <stat>
+                  <include_in_stat/>
+                </stat>
+              </diagnostic>
+            </tensor_field>
+            <scalar_field name="Source" rank="0">
+              <diagnostic>
+                <algorithm name="Internal" material_phase_support="multiple"/>
+                <output/>
+                <stat/>
+                <detectors>
+                  <include_in_detectors/>
+                </detectors>
+              </diagnostic>
+            </scalar_field>
+            <scalar_field name="Absorption" rank="0">
+              <diagnostic>
+                <algorithm name="Internal" material_phase_support="multiple"/>
+                <output/>
+                <stat/>
+                <detectors>
+                  <include_in_detectors/>
+                </detectors>
+              </diagnostic>
+            </scalar_field>
+            <output/>
+            <stat/>
+            <convergence>
+              <include_in_convergence/>
+            </convergence>
+            <detectors>
+              <include_in_detectors/>
+            </detectors>
+            <steady_state>
+              <include_in_steady_state/>
+            </steady_state>
+            <consistent_interpolation/>
+          </prognostic>
+        </scalar_field>
+        <tensor_field name="BackgroundViscosity" rank="2">
+          <prescribed>
+            <mesh name="CoordinateMesh"/>
+            <value name="WholeMesh">
+              <isotropic>
+                <constant>
+                  <real_value rank="0">3.0e-6</real_value>
+                </constant>
+              </isotropic>
+            </value>
+            <output/>
+          </prescribed>
+        </tensor_field>
+        <tensor_field name="EddyViscosity" rank="2">
+          <diagnostic>
+            <algorithm name="Internal" material_phase_support="multiple"/>
+            <mesh name="CoordinateMesh"/>
+            <output/>
+            <stat>
+              <include_in_stat/>
+            </stat>
+          </diagnostic>
+        </tensor_field>
+        <scalar_field name="ScalarEddyViscosity" rank="0">
+          <diagnostic>
+            <algorithm name="Internal" material_phase_support="multiple"/>
+            <mesh name="CoordinateMesh"/>
+            <output/>
+            <stat/>
+            <convergence>
+              <include_in_convergence/>
+            </convergence>
+            <detectors>
+              <include_in_detectors/>
+            </detectors>
+            <steady_state>
+              <include_in_steady_state/>
+            </steady_state>
+            <consistent_interpolation/>
+          </diagnostic>
+        </scalar_field>
+        <scalar_field name="LengthScale" rank="0">
+          <diagnostic>
+            <algorithm name="Internal" material_phase_support="multiple"/>
+            <mesh name="CoordinateMesh"/>
+            <output/>
+            <stat/>
+            <convergence>
+              <include_in_convergence/>
+            </convergence>
+            <detectors>
+              <include_in_detectors/>
+            </detectors>
+            <steady_state>
+              <include_in_steady_state/>
+            </steady_state>
+          </diagnostic>
+        </scalar_field>
+        <scalar_field name="f_1" rank="0">
+          <diagnostic>
+            <algorithm name="Internal" material_phase_support="multiple"/>
+            <mesh name="CoordinateMesh"/>
+            <output/>
+            <stat/>
+            <convergence>
+              <include_in_convergence/>
+            </convergence>
+            <detectors>
+              <include_in_detectors/>
+            </detectors>
+            <steady_state>
+              <include_in_steady_state/>
+            </steady_state>
+          </diagnostic>
+        </scalar_field>
+        <scalar_field name="f_2" rank="0">
+          <diagnostic>
+            <algorithm name="Internal" material_phase_support="multiple"/>
+            <mesh name="CoordinateMesh"/>
+            <output/>
+            <stat/>
+            <convergence>
+              <include_in_convergence/>
+            </convergence>
+            <detectors>
+              <include_in_detectors/>
+            </detectors>
+            <steady_state>
+              <include_in_steady_state/>
+            </steady_state>
+          </diagnostic>
+        </scalar_field>
+        <scalar_field name="f_mu" rank="0">
+          <diagnostic>
+            <algorithm name="Internal" material_phase_support="multiple"/>
+            <mesh name="CoordinateMesh"/>
+            <output/>
+            <stat/>
+            <convergence>
+              <include_in_convergence/>
+            </convergence>
+            <detectors>
+              <include_in_detectors/>
+            </detectors>
+            <steady_state>
+              <include_in_steady_state/>
+            </steady_state>
+          </diagnostic>
+        </scalar_field>
+        <max_damping_value>
+          <real_value rank="0">10.0</real_value>
+        </max_damping_value>
+        <C_mu>
+          <real_value rank="0">0.09</real_value>
+        </C_mu>
+        <C_eps_1>
+          <real_value rank="0">1.44</real_value>
+        </C_eps_1>
+        <C_eps_2>
+          <real_value rank="0">1.92</real_value>
+        </C_eps_2>
+        <sigma_k>
+          <real_value rank="0">1.0</real_value>
+        </sigma_k>
+        <sigma_eps>
+          <real_value rank="0">1.3</real_value>
+        </sigma_eps>
+        <sigma_p>
+          <real_value rank="0">1.0</real_value>
+        </sigma_p>
+        <yPlus>
+          <real_value rank="0">11.06</real_value>
+        </yPlus>
+        <l_max>
+          <real_value rank="0">0.05</real_value>
+        </l_max>
+        <minimum_eddy_ratio>
+          <real_value rank="0">0.01</real_value>
+        </minimum_eddy_ratio>
+        <time_discretisation>
+          <theta>
+            <real_value rank="0">0.5</real_value>
+          </theta>
+          <source_term_implementation>
+            <production_term>source</production_term>
+            <destruction_term>absorbtion</destruction_term>
+            <buoyancy_term>absorbtion</buoyancy_term>
+          </source_term_implementation>
+        </time_discretisation>
+        <mass_terms>
+          <use_consistent_mass_matrix>
+            <solver>
+              <iterative_method name="gmres">
+                <restart>
+                  <integer_value rank="0">30</integer_value>
+                </restart>
+              </iterative_method>
+              <preconditioner name="sor"/>
+              <relative_error>
+                <real_value rank="0">1.0e-7</real_value>
+              </relative_error>
+              <max_iterations>
+                <integer_value rank="0">1000</integer_value>
+              </max_iterations>
+              <never_ignore_solver_failures/>
+              <diagnostics>
+                <monitors/>
+              </diagnostics>
+            </solver>
+          </use_consistent_mass_matrix>
+        </mass_terms>
+      </k-epsilon>
+    </subgridscale_parameterisations>
+    <scalar_field name="Pressure" rank="0">
+      <prognostic>
+        <mesh name="PressureMesh"/>
+        <spatial_discretisation>
+          <continuous_galerkin>
+            <remove_stabilisation_term/>
+          </continuous_galerkin>
+        </spatial_discretisation>
+        <scheme>
+          <poisson_pressure_solution>
+            <string_value lines="1">never</string_value>
+          </poisson_pressure_solution>
+          <use_projection_method/>
+        </scheme>
+        <solver>
+          <iterative_method name="cg"/>
+          <preconditioner name="hypre">
+            <hypre_type name="boomeramg"/>
+          </preconditioner>
+          <relative_error>
+            <real_value rank="0">1.0e-7</real_value>
+          </relative_error>
+          <max_iterations>
+            <integer_value rank="0">1000</integer_value>
+          </max_iterations>
+          <never_ignore_solver_failures/>
+          <diagnostics>
+            <monitors/>
+          </diagnostics>
+        </solver>
+        <boundary_conditions name="Outflow">
+          <surface_ids>
+            <integer_value shape="1" rank="1">2</integer_value>
+          </surface_ids>
+          <type name="dirichlet">
+            <constant>
+              <real_value rank="0">0.0</real_value>
+            </constant>
+          </type>
+        </boundary_conditions>
+        <output/>
+        <stat/>
+        <convergence>
+          <include_in_convergence/>
+        </convergence>
+        <detectors>
+          <exclude_from_detectors/>
+        </detectors>
+        <steady_state>
+          <include_in_steady_state/>
+        </steady_state>
+        <consistent_interpolation/>
+      </prognostic>
+    </scalar_field>
+    <scalar_field name="Density" rank="0">
+      <diagnostic>
+        <algorithm name="Internal" material_phase_support="multiple"/>
+        <mesh name="CoordinateMesh"/>
+        <output/>
+        <stat/>
+        <convergence>
+          <include_in_convergence/>
+        </convergence>
+        <detectors>
+          <include_in_detectors/>
+        </detectors>
+        <steady_state>
+          <include_in_steady_state/>
+        </steady_state>
+      </diagnostic>
+    </scalar_field>
+    <vector_field name="Velocity" rank="1">
+      <prognostic>
+        <mesh name="VelocityMesh"/>
+        <equation name="Boussinesq"/>
+        <spatial_discretisation>
+          <discontinuous_galerkin>
+            <viscosity_scheme>
+              <bassi_rebay/>
+              <partial_stress_form/>
+            </viscosity_scheme>
+            <advection_scheme>
+              <upwind/>
+              <project_velocity_to_continuous>
+                <mesh name="CoordinateMesh"/>
+              </project_velocity_to_continuous>
+              <integrate_advection_by_parts>
+                <twice/>
+              </integrate_advection_by_parts>
+            </advection_scheme>
+            <buoyancy/>
+          </discontinuous_galerkin>
+          <conservative_advection>
+            <real_value rank="0">0.0</real_value>
+          </conservative_advection>
+        </spatial_discretisation>
+        <temporal_discretisation>
+          <theta>
+            <real_value rank="0">1.0</real_value>
+          </theta>
+          <relaxation>
+            <real_value rank="0">1.0</real_value>
+          </relaxation>
+          <discontinuous_galerkin>
+            <maximum_courant_number_per_subcycle>
+              <real_value rank="0">0.1</real_value>
+            </maximum_courant_number_per_subcycle>
+          </discontinuous_galerkin>
+        </temporal_discretisation>
+        <solver>
+          <iterative_method name="gmres">
+            <restart>
+              <integer_value rank="0">30</integer_value>
+            </restart>
+          </iterative_method>
+          <preconditioner name="sor"/>
+          <relative_error>
+            <real_value rank="0">1.0e-07</real_value>
+          </relative_error>
+          <absolute_error>
+            <real_value rank="0">1.0e-10</real_value>
+          </absolute_error>
+          <max_iterations>
+            <integer_value rank="0">1000</integer_value>
+          </max_iterations>
+          <never_ignore_solver_failures/>
+          <diagnostics>
+            <monitors/>
+          </diagnostics>
+        </solver>
+        <initial_condition name="WholeMesh">
+          <constant>
+            <real_value shape="3" dim1="dim" rank="1">0 0 0</real_value>
+          </constant>
+        </initial_condition>
+        <boundary_conditions name="Inflow">
+          <surface_ids>
+            <integer_value shape="1" rank="1">1</integer_value>
+          </surface_ids>
+          <type name="dirichlet">
+            <apply_weakly/>
+            <align_bc_with_cartesian>
+              <x_component>
+                <python>
+                  <string_value lines="20" type="code" language="python">def val(X, t):
+  from numpy import log
+  UM = 0.46
+  y = max(0.01, X[2] + 0.41)
+  y0 = 0.01
+  return UM * min(1.0,t)*log(y/y0)/2.0</string_value>
+                </python>
+              </x_component>
+              <y_component>
+                <constant>
+                  <real_value rank="0">0.0</real_value>
+                </constant>
+              </y_component>
+              <z_component>
+                <constant>
+                  <real_value rank="0">0.0</real_value>
+                </constant>
+              </z_component>
+            </align_bc_with_cartesian>
+          </type>
+        </boundary_conditions>
+        <boundary_conditions name="Pipe">
+          <surface_ids>
+            <integer_value shape="1" rank="1">6</integer_value>
+          </surface_ids>
+          <type name="no_normal_flow"/>
+        </boundary_conditions>
+        <boundary_conditions name="Top">
+          <surface_ids>
+            <integer_value shape="1" rank="1">4</integer_value>
+          </surface_ids>
+          <type name="dirichlet">
+            <apply_weakly/>
+            <align_bc_with_cartesian>
+              <z_component>
+                <constant>
+                  <real_value rank="0">0.0</real_value>
+                </constant>
+              </z_component>
+            </align_bc_with_cartesian>
+          </type>
+        </boundary_conditions>
+        <boundary_conditions name="Outflow">
+          <surface_ids>
+            <integer_value shape="1" rank="1">2</integer_value>
+          </surface_ids>
+          <type name="dirichlet">
+            <apply_weakly/>
+            <align_bc_with_cartesian>
+              <y_component>
+                <constant>
+                  <real_value rank="0">0.0</real_value>
+                </constant>
+              </y_component>
+              <z_component>
+                <constant>
+                  <real_value rank="0">0.0</real_value>
+                </constant>
+              </z_component>
+            </align_bc_with_cartesian>
+          </type>
+        </boundary_conditions>
+        <boundary_conditions name="Bottom">
+          <surface_ids>
+            <integer_value shape="2" rank="1">5 6</integer_value>
+          </surface_ids>
+          <type name="drag">
+            <constant>
+              <real_value rank="0">1</real_value>
+            </constant>
+            <log_law_friction_velocity>
+              <yPlus>
+                <real_value rank="0">11.06</real_value>
+              </yPlus>
+            </log_law_friction_velocity>
+          </type>
+        </boundary_conditions>
+        <boundary_conditions name="Bottom_no_normal_flow">
+          <surface_ids>
+            <integer_value shape="1" rank="1">5</integer_value>
+          </surface_ids>
+          <type name="no_normal_flow"/>
+        </boundary_conditions>
+        <boundary_conditions name="Walls">
+          <surface_ids>
+            <integer_value shape="1" rank="1">3</integer_value>
+          </surface_ids>
+          <type name="no_normal_flow"/>
+        </boundary_conditions>
+        <tensor_field name="Viscosity" rank="2">
+          <diagnostic>
+            <mesh name="CoordinateMesh"/>
+            <algorithm name="Internal" material_phase_support="multiple"/>
+            <output/>
+            <stat>
+              <include_in_stat/>
+            </stat>
+            <consistent_interpolation/>
+          </diagnostic>
+        </tensor_field>
+        <output/>
+        <stat>
+          <include_in_stat/>
+          <previous_time_step>
+            <exclude_from_stat/>
+          </previous_time_step>
+          <nonlinear_field>
+            <exclude_from_stat/>
+          </nonlinear_field>
+        </stat>
+        <convergence>
+          <include_in_convergence/>
+        </convergence>
+        <detectors>
+          <include_in_detectors/>
+        </detectors>
+        <steady_state>
+          <include_in_steady_state/>
+        </steady_state>
+        <galerkin_projection>
+          <discontinuous/>
+        </galerkin_projection>
+      </prognostic>
+    </vector_field>
+    <scalar_field name="CFLNumber" rank="0">
+      <diagnostic>
+        <algorithm name="Internal" material_phase_support="multiple"/>
+        <mesh name="CoordinateMesh"/>
+        <output/>
+        <stat/>
+        <convergence>
+          <include_in_convergence/>
+        </convergence>
+        <detectors>
+          <include_in_detectors/>
+        </detectors>
+        <steady_state>
+          <include_in_steady_state/>
+        </steady_state>
+      </diagnostic>
+    </scalar_field>
+    <scalar_field name="DG_CourantNumber" rank="0">
+      <diagnostic>
+        <algorithm name="Internal" material_phase_support="multiple"/>
+        <mesh name="VelocityMesh"/>
+        <output/>
+        <stat/>
+        <convergence>
+          <include_in_convergence/>
+        </convergence>
+        <detectors>
+          <include_in_detectors/>
+        </detectors>
+        <steady_state>
+          <include_in_steady_state/>
+        </steady_state>
+      </diagnostic>
+    </scalar_field>
+    <scalar_field name="SuspendedRate" rank="0">
+      <diagnostic>
+        <algorithm source_field_2_type="scalar" name="scalar_difference" source_field_1_name="SedimentBedloadErosionRate" source_field_2_name="SedimentBedloadDepositRate" material_phase_support="single" source_field_1_type="scalar"/>
+        <mesh name="CoordinateMesh"/>
+        <output/>
+        <stat/>
+        <convergence>
+          <include_in_convergence/>
+        </convergence>
+        <detectors>
+          <include_in_detectors/>
+        </detectors>
+        <steady_state>
+          <include_in_steady_state/>
+        </steady_state>
+        <consistent_interpolation/>
+      </diagnostic>
+    </scalar_field>
+    <scalar_field name="SedimentBedloadErosionRate" rank="0">
+      <diagnostic>
+        <algorithm name="Internal" material_phase_support="multiple"/>
+        <mesh name="CoordinateMesh"/>
+        <output/>
+        <stat/>
+        <convergence>
+          <include_in_convergence/>
+        </convergence>
+        <detectors>
+          <include_in_detectors/>
+        </detectors>
+        <steady_state>
+          <include_in_steady_state/>
+        </steady_state>
+      </diagnostic>
+    </scalar_field>
+    <scalar_field name="SedimentBedloadDepositRate" rank="0">
+      <diagnostic>
+        <algorithm name="Internal" material_phase_support="multiple"/>
+        <mesh name="CoordinateMesh"/>
+        <output/>
+        <stat/>
+        <convergence>
+          <include_in_convergence/>
+        </convergence>
+        <detectors>
+          <include_in_detectors/>
+        </detectors>
+        <steady_state>
+          <include_in_steady_state/>
+        </steady_state>
+      </diagnostic>
+    </scalar_field>
+    <scalar_field name="BedloadRateDiv" rank="0">
+      <diagnostic>
+        <algorithm source_field_type="vector" material_phase_support="single" name="surface_horizontal_divergence" source_field_name="BedloadRate">
+          <surface_ids>
+            <integer_value shape="1" rank="1">5</integer_value>
+          </surface_ids>
+          <beta>
+            <real_value rank="0">1</real_value>
+          </beta>
+          <smoothing_length>
+            <real_value rank="0">0.01</real_value>
+          </smoothing_length>
+          <set_to_zero name="No_Flux">
+            <surface_ids>
+              <integer_value shape="2" rank="1">1 3</integer_value>
+            </surface_ids>
+          </set_to_zero>
+          <solver>
+            <iterative_method name="cg"/>
+            <preconditioner name="sor"/>
+            <relative_error>
+              <real_value rank="0">1e-07</real_value>
+            </relative_error>
+            <max_iterations>
+              <integer_value rank="0">1000</integer_value>
+            </max_iterations>
+            <never_ignore_solver_failures/>
+            <diagnostics>
+              <monitors/>
+            </diagnostics>
+          </solver>
+        </algorithm>
+        <mesh name="CoordinateMesh"/>
+        <output/>
+        <stat/>
+        <convergence>
+          <include_in_convergence/>
+        </convergence>
+        <detectors>
+          <include_in_detectors/>
+        </detectors>
+        <steady_state>
+          <include_in_steady_state/>
+        </steady_state>
+      </diagnostic>
+    </scalar_field>
+    <scalar_field name="GeostrophicPressure" rank="0">
+      <prognostic>
+        <mesh name="PressureMesh"/>
+        <spatial_discretisation>
+          <geostrophic_pressure_option>
+            <string_value>exclude_coriolis</string_value>
+          </geostrophic_pressure_option>
+        </spatial_discretisation>
+        <solver>
+          <iterative_method name="cg"/>
+          <preconditioner name="hypre">
+            <hypre_type name="boomeramg"/>
+          </preconditioner>
+          <relative_error>
+            <real_value rank="0">1.0e-7</real_value>
+          </relative_error>
+          <max_iterations>
+            <integer_value rank="0">1000</integer_value>
+          </max_iterations>
+          <never_ignore_solver_failures/>
+          <diagnostics>
+            <monitors/>
+          </diagnostics>
+        </solver>
+        <boundary_conditions name="Top">
+          <surface_ids>
+            <integer_value shape="1" rank="1">4</integer_value>
+          </surface_ids>
+          <type name="dirichlet">
+            <constant>
+              <real_value rank="0">0.0</real_value>
+            </constant>
+          </type>
+        </boundary_conditions>
+        <output/>
+        <stat/>
+        <convergence>
+          <include_in_convergence/>
+        </convergence>
+        <detectors>
+          <include_in_detectors/>
+        </detectors>
+        <steady_state>
+          <include_in_steady_state/>
+        </steady_state>
+        <no_interpolation/>
+      </prognostic>
+    </scalar_field>
+    <scalar_field name="FirstTimeStepAdapt" rank="0">
+      <prescribed>
+        <mesh name="CoordinateMesh"/>
+        <value name="WholeMesh">
+          <python>
+            <string_value lines="20" type="code" language="python">def val(X,t):
+  from numpy import log
+  if t&gt;0.0:
+    return 0.0
+  else:
+    UM = 0.46
+    y = X[2] + 0.41
+    y0 = 0.01
+    return UM * log(y/y0)/2.0</string_value>
+          </python>
+        </value>
+        <output/>
+        <stat/>
+        <detectors>
+          <exclude_from_detectors/>
+        </detectors>
+        <adaptivity_options>
+          <absolute_measure>
+            <scalar_field name="InterpolationErrorBound" rank="0">
+              <prescribed>
+                <value name="WholeMesh">
+                  <constant>
+                    <real_value rank="0">0.04</real_value>
+                  </constant>
+                </value>
+                <output/>
+                <stat/>
+                <detectors>
+                  <exclude_from_detectors/>
+                </detectors>
+              </prescribed>
+            </scalar_field>
+          </absolute_measure>
+        </adaptivity_options>
+        <consistent_interpolation/>
+      </prescribed>
+    </scalar_field>
+    <scalar_field name="SmoothedGV" rank="0">
+      <diagnostic>
+        <algorithm source_field_type="scalar" material_phase_support="single" name="surface_elevation_smoothing" source_field_name="ScalarGV">
+          <surface_ids>
+            <integer_value shape="1" rank="1">5</integer_value>
+          </surface_ids>
+          <smoothing_length>
+            <real_value rank="0">0.01</real_value>
+          </smoothing_length>
+          <theta>
+            <real_value rank="0">0.2</real_value>
+          </theta>
+          <lump_mass/>
+          <solver>
+            <iterative_method name="cg"/>
+            <preconditioner name="sor"/>
+            <relative_error>
+              <real_value rank="0">1.0e-7</real_value>
+            </relative_error>
+            <max_iterations>
+              <integer_value rank="0">1000</integer_value>
+            </max_iterations>
+            <never_ignore_solver_failures/>
+            <diagnostics>
+              <monitors/>
+            </diagnostics>
+          </solver>
+        </algorithm>
+        <mesh name="CoordinateMesh"/>
+        <output/>
+        <stat/>
+        <convergence>
+          <include_in_convergence/>
+        </convergence>
+        <detectors>
+          <include_in_detectors/>
+        </detectors>
+        <steady_state>
+          <include_in_steady_state/>
+        </steady_state>
+        <consistent_interpolation/>
+      </diagnostic>
+    </scalar_field>
+    <scalar_field name="ScalarGV" rank="0">
+      <diagnostic>
+        <algorithm name="scalar_python_diagnostic" material_phase_support="single">
+          <string_value lines="20" type="code" language="python">import numpy as np
+
+B = state.scalar_fields['BedloadRateDiv']
+S = state.scalar_fields['SuspendedRate']
+
+# set factors for bedload and suspension contributions:
+
+B_factor = 6000.0
+#B_factor = 1.0
+S_factor = 6000.0
+#S_factor = 1.0
+
+# assign a mesh velocity based upon results of mesh movement:
+for j in range(field.node_count):
+  T_b = B.node_val(j)
+  T_s = S.node_val(j)
+  
+  if time &lt; 0.0:    
+    field.set(j, np.array([0.0]))
+    
+  else:  
+    field.set(j, np.array([-(S_factor * T_s + B_factor * T_b)]))
+    #field.set(j, np.array([0.0, 0.0, -(S_factor * T_s)]))</string_value>
+        </algorithm>
+        <mesh name="CoordinateMesh"/>
+        <output/>
+        <stat/>
+        <convergence>
+          <include_in_convergence/>
+        </convergence>
+        <detectors>
+          <include_in_detectors/>
+        </detectors>
+        <steady_state>
+          <include_in_steady_state/>
+        </steady_state>
+        <consistent_interpolation/>
+      </diagnostic>
+    </scalar_field>
+    <vector_field name="BedShearStress" rank="1">
+      <diagnostic>
+        <algorithm name="Internal" material_phase_support="multiple"/>
+        <mesh name="VelocityMesh"/>
+        <density>
+          <real_value rank="0">1000.0</real_value>
+        </density>
+        <calculation_method>
+          <friction_velocity>
+            <yPlus>
+              <real_value rank="0">11.06</real_value>
+            </yPlus>
+          </friction_velocity>
+        </calculation_method>
+        <output/>
+        <stat>
+          <include_in_stat/>
+        </stat>
+        <detectors>
+          <include_in_detectors/>
+        </detectors>
+      </diagnostic>
+    </vector_field>
+    <vector_field name="ContVel" rank="1">
+      <diagnostic>
+        <algorithm source_field_type="vector" material_phase_support="single" name="vector_galerkin_projection" source_field_name="Velocity">
+          <solver>
+            <iterative_method name="cg"/>
+            <preconditioner name="sor"/>
+            <relative_error>
+              <real_value rank="0">1.0e-7</real_value>
+            </relative_error>
+            <max_iterations>
+              <integer_value rank="0">1000</integer_value>
+            </max_iterations>
+            <never_ignore_solver_failures/>
+            <diagnostics>
+              <monitors/>
+            </diagnostics>
+          </solver>
+        </algorithm>
+        <mesh name="CoordinateMesh"/>
+        <output/>
+        <stat>
+          <include_in_stat/>
+        </stat>
+        <convergence>
+          <include_in_convergence/>
+        </convergence>
+        <detectors>
+          <include_in_detectors/>
+        </detectors>
+        <steady_state>
+          <include_in_steady_state/>
+        </steady_state>
+        <adaptivity_options>
+          <absolute_measure>
+            <vector_field name="InterpolationErrorBound" rank="1">
+              <prescribed>
+                <value name="WholeMesh">
+                  <python>
+                    <string_value lines="20" type="code" language="python">def val(X, t):
+  #if X[0] &lt;= 0.8:
+    #return [1.0e10, 1.0e10]
+  #if X[0] &gt;= 1.2:
+    #return [1.0e10, 1.0e10]
+  #if X[1] &gt;= 0.3:
+    #return [1.0e10, 1.0e10]  
+  #if t &lt; 300:
+  if t &lt; 600:
+    #return [0.01, 0.001, 0.001]
+    return [0.02, 0.002, 0.002]
+  else: 
+    return [0.002, 0.0002, 0.0002]</string_value>
+                  </python>
+                </value>
+                <output/>
+                <stat>
+                  <include_in_stat/>
+                </stat>
+                <detectors>
+                  <exclude_from_detectors/>
+                </detectors>
+              </prescribed>
+            </vector_field>
+            <p_norm>
+              <integer_value rank="0">2</integer_value>
+            </p_norm>
+          </absolute_measure>
+        </adaptivity_options>
+        <consistent_interpolation/>
+      </diagnostic>
+    </vector_field>
+    <vector_field name="BedloadRate" rank="1">
+      <diagnostic>
+        <algorithm name="bedload_flux" material_phase_support="single">
+          <surface_ids>
+            <integer_value shape="1" rank="1">5</integer_value>
+          </surface_ids>
+          <angle_of_repose>
+            <real_value rank="0">30.0</real_value>
+          </angle_of_repose>
+          <transport_model>
+            <engelund_fredsoe/>
+          </transport_model>
+        </algorithm>
+        <mesh name="VelocityMesh"/>
+        <output/>
+        <stat>
+          <include_in_stat/>
+        </stat>
+        <convergence>
+          <include_in_convergence/>
+        </convergence>
+        <detectors>
+          <include_in_detectors/>
+        </detectors>
+        <steady_state>
+          <include_in_steady_state/>
+        </steady_state>
+      </diagnostic>
+    </vector_field>
+    <vector_field name="GV" rank="1">
+      <diagnostic>
+        <algorithm name="vector_python_diagnostic" material_phase_support="single">
+          <string_value lines="20" type="code" language="python">import numpy as np
+
+B = state.scalar_fields['SmoothedGV']
+
+field.val[:,-1] = B.val[:]</string_value>
+        </algorithm>
+        <mesh name="CoordinateMesh"/>
+        <output/>
+        <stat>
+          <include_in_stat/>
+        </stat>
+        <convergence>
+          <include_in_convergence/>
+        </convergence>
+        <detectors>
+          <include_in_detectors/>
+        </detectors>
+        <steady_state>
+          <include_in_steady_state/>
+        </steady_state>
+        <consistent_interpolation/>
+      </diagnostic>
+    </vector_field>
+    <sediment>
+      <scalar_field name="Sediment" rank="0">
+        <prognostic>
+          <mesh name="CoordinateMesh"/>
+          <equation name="AdvectionDiffusion"/>
+          <spatial_discretisation>
+            <control_volumes>
+              <face_value name="FiniteElement">
+                <limit_face_value>
+                  <limiter name="Sweby"/>
+                </limit_face_value>
+              </face_value>
+              <diffusion_scheme name="ElementGradient"/>
+            </control_volumes>
+            <conservative_advection>
+              <real_value rank="0">0.0</real_value>
+            </conservative_advection>
+          </spatial_discretisation>
+          <temporal_discretisation>
+            <theta>
+              <real_value rank="0">1.0</real_value>
+            </theta>
+            <control_volumes>
+              <number_advection_iterations>
+                <integer_value rank="0">3</integer_value>
+              </number_advection_iterations>
+            </control_volumes>
+          </temporal_discretisation>
+          <solver>
+            <iterative_method name="gmres">
+              <restart>
+                <integer_value rank="0">30</integer_value>
+              </restart>
+            </iterative_method>
+            <preconditioner name="eisenstat"/>
+            <relative_error>
+              <real_value rank="0">1.0e-7</real_value>
+            </relative_error>
+            <max_iterations>
+              <integer_value rank="0">1000</integer_value>
+            </max_iterations>
+            <never_ignore_solver_failures/>
+            <diagnostics>
+              <monitors/>
+            </diagnostics>
+          </solver>
+          <initial_condition name="WholeMesh">
+            <constant>
+              <real_value rank="0">0.0</real_value>
+            </constant>
+          </initial_condition>
+          <boundary_conditions name="zero_flux">
+            <surface_ids>
+              <integer_value shape="4" rank="1">1 3 4 6</integer_value>
+            </surface_ids>
+            <type name="zero_flux"/>
+          </boundary_conditions>
+          <boundary_conditions name="seabed">
+            <surface_ids>
+              <integer_value shape="1" rank="1">5</integer_value>
+            </surface_ids>
+            <type name="sediment_reentrainment">
+              <algorithm>VanRijn_1984</algorithm>
+            </type>
+          </boundary_conditions>
+          <subgridscale_parameterisation name="k-epsilon">
+            <background_diffusivity>
+              <real_value rank="0">3.0e-6</real_value>
+            </background_diffusivity>
+          </subgridscale_parameterisation>
+          <tensor_field name="Diffusivity" rank="2">
+            <diagnostic>
+              <algorithm name="Internal" material_phase_support="multiple"/>
+              <output/>
+              <stat>
+                <include_in_stat/>
+              </stat>
+            </diagnostic>
+          </tensor_field>
+          <scalar_field name="SinkingVelocity" rank="0">
+            <prescribed>
+              <mesh name="VelocityMesh"/>
+              <value name="WholeMesh">
+                <constant>
+                  <real_value rank="0">0.038</real_value>
+                </constant>
+              </value>
+              <output/>
+              <stat/>
+              <detectors>
+                <exclude_from_detectors/>
+              </detectors>
+            </prescribed>
+          </scalar_field>
+          <output/>
+          <stat/>
+          <convergence>
+            <include_in_convergence/>
+          </convergence>
+          <detectors>
+            <include_in_detectors/>
+          </detectors>
+          <steady_state>
+            <include_in_steady_state/>
+          </steady_state>
+          <adaptivity_options>
+            <absolute_measure>
+              <scalar_field name="InterpolationErrorBound" rank="0">
+                <prescribed>
+                  <value name="WholeMesh">
+                    <python>
+                      <string_value lines="20" type="code" language="python">def val(X, t):
+  #if X[0] &lt;= 0.8:
+    #return 1.0e10
+  #if X[0] &gt;= 1.2:
+    #return 1.0e10
+  #if X[1] &gt;= 0.3:
+    #return 1.0e10
+  #if t &lt; 300:
+  if t &lt; 600:
+    return 1.0e10
+  else:
+    return 0.0001
+  #return 0.00001
+  #return 0.000001</string_value>
+                    </python>
+                  </value>
+                  <output/>
+                  <stat/>
+                  <detectors>
+                    <exclude_from_detectors/>
+                  </detectors>
+                </prescribed>
+              </scalar_field>
+            </absolute_measure>
+          </adaptivity_options>
+          <consistent_interpolation/>
+          <scalar_field name="Bedload" rank="0">
+            <prognostic>
+              <surface_ids>
+                <integer_value shape="1" rank="1">5</integer_value>
+              </surface_ids>
+              <equation name="SedimentBedload"/>
+              <spatial_discretisation>
+                <control_volumes>
+                  <face_value name="FiniteElement">
+                    <limit_face_value>
+                      <limiter name="Sweby"/>
+                    </limit_face_value>
+                  </face_value>
+                  <diffusion_scheme name="ElementGradient"/>
+                </control_volumes>
+                <conservative_advection>
+                  <real_value rank="0">0.0</real_value>
+                </conservative_advection>
+              </spatial_discretisation>
+              <temporal_discretisation>
+                <theta>
+                  <real_value rank="0">1.0</real_value>
+                </theta>
+                <control_volumes>
+                  <number_advection_iterations>
+                    <integer_value rank="0">3</integer_value>
+                  </number_advection_iterations>
+                </control_volumes>
+              </temporal_discretisation>
+              <solver>
+                <iterative_method name="gmres">
+                  <restart>
+                    <integer_value rank="0">30</integer_value>
+                  </restart>
+                </iterative_method>
+                <preconditioner name="eisenstat"/>
+                <relative_error>
+                  <real_value rank="0">1.0e-7</real_value>
+                </relative_error>
+                <max_iterations>
+                  <integer_value rank="0">1000</integer_value>
+                </max_iterations>
+                <never_ignore_solver_failures/>
+                <diagnostics>
+                  <monitors/>
+                </diagnostics>
+              </solver>
+              <initial_condition name="WholeMesh">
+                <constant>
+                  <real_value rank="0">1.0</real_value>
+                </constant>
+              </initial_condition>
+              <output/>
+              <stat/>
+              <convergence>
+                <include_in_convergence/>
+              </convergence>
+              <detectors>
+                <include_in_detectors/>
+              </detectors>
+              <steady_state>
+                <include_in_steady_state/>
+              </steady_state>
+              <consistent_interpolation/>
+            </prognostic>
+          </scalar_field>
+          <scalar_field name="BedloadVolumeFraction" rank="0">
+            <diagnostic>
+              <output/>
+              <stat/>
+              <convergence>
+                <include_in_convergence/>
+              </convergence>
+              <detectors>
+                <include_in_detectors/>
+              </detectors>
+              <steady_state>
+                <include_in_steady_state/>
+              </steady_state>
+            </diagnostic>
+          </scalar_field>
+          <scalar_field name="BedloadDepositRate" rank="0">
+            <diagnostic>
+              <output/>
+              <stat/>
+              <convergence>
+                <include_in_convergence/>
+              </convergence>
+              <detectors>
+                <include_in_detectors/>
+              </detectors>
+              <steady_state>
+                <include_in_steady_state/>
+              </steady_state>
+            </diagnostic>
+          </scalar_field>
+          <scalar_field name="BedloadErosionRate" rank="0">
+            <diagnostic>
+              <output/>
+              <stat/>
+              <convergence>
+                <include_in_convergence/>
+              </convergence>
+              <detectors>
+                <include_in_detectors/>
+              </detectors>
+              <steady_state>
+                <include_in_steady_state/>
+              </steady_state>
+            </diagnostic>
+          </scalar_field>
+          <submerged_specific_gravity>
+            <real_value rank="0">1.65</real_value>
+          </submerged_specific_gravity>
+          <diameter>
+            <real_value rank="0">0.00026</real_value>
+          </diameter>
+        </prognostic>
+      </scalar_field>
+      <scalar_field name="SedimentBedActiveLayerD50" rank="0">
+        <diagnostic>
+          <surface_ids>
+            <integer_value shape="1" rank="1">5</integer_value>
+          </surface_ids>
+          <algorithm name="Internal" material_phase_support="multiple"/>
+          <mesh name="CoordinateMesh"/>
+          <output/>
+          <stat/>
+          <convergence>
+            <include_in_convergence/>
+          </convergence>
+          <detectors>
+            <include_in_detectors/>
+          </detectors>
+          <steady_state>
+            <include_in_steady_state/>
+          </steady_state>
+        </diagnostic>
+      </scalar_field>
+      <scalar_field name="SedimentBedActiveLayerSigma" rank="0">
+        <diagnostic>
+          <surface_ids>
+            <integer_value shape="1" rank="1">5</integer_value>
+          </surface_ids>
+          <algorithm name="Internal" material_phase_support="multiple"/>
+          <mesh name="CoordinateMesh"/>
+          <output/>
+          <stat/>
+          <convergence>
+            <include_in_convergence/>
+          </convergence>
+          <detectors>
+            <include_in_detectors/>
+          </detectors>
+          <steady_state>
+            <include_in_steady_state/>
+          </steady_state>
+        </diagnostic>
+      </scalar_field>
+    </sediment>
+  </material_phase>
+  <mesh_adaptivity>
+    <mesh_movement>
+      <imposed_grid_velocity/>
+      <vector_field name="GridVelocity" rank="1">
+        <diagnostic>
+          <algorithm source_field_type="vector" material_phase_support="single" name="stress_free_field" source_field_name="ContVel">
+            <solver>
+              <iterative_method name="cg"/>
+              <preconditioner name="sor"/>
+              <relative_error>
+                <real_value rank="0">1.0e-7</real_value>
+              </relative_error>
+              <max_iterations>
+                <integer_value rank="0">1000</integer_value>
+              </max_iterations>
+              <never_ignore_solver_failures/>
+              <diagnostics>
+                <monitors/>
+              </diagnostics>
+            </solver>
+            <boundary_conditions name="FullyPrescribed">
+              <surface_ids>
+                <integer_value shape="1" rank="1">5</integer_value>
+              </surface_ids>
+              <type name="dirichlet">
+                <align_bc_with_cartesian>
+                  <x_component>
+                    <from_field parent_field_name="GV"/>
+                  </x_component>
+                  <y_component>
+                    <from_field parent_field_name="GV"/>
+                  </y_component>
+                  <z_component>
+                    <from_field parent_field_name="GV"/>
+                  </z_component>
+                </align_bc_with_cartesian>
+              </type>
+            </boundary_conditions>
+            <boundary_conditions name="Walls">
+              <surface_ids>
+                <integer_value shape="3" rank="1">1 2 3</integer_value>
+              </surface_ids>
+              <type name="dirichlet">
+                <align_bc_with_cartesian>
+                  <x_component>
+                    <constant>
+                      <real_value rank="0">0.0</real_value>
+                    </constant>
+                  </x_component>
+                  <y_component>
+                    <constant>
+                      <real_value rank="0">0.0</real_value>
+                    </constant>
+                  </y_component>
+                </align_bc_with_cartesian>
+              </type>
+            </boundary_conditions>
+            <boundary_conditions name="Top">
+              <surface_ids>
+                <integer_value shape="1" rank="1">4</integer_value>
+              </surface_ids>
+              <type name="dirichlet">
+                <align_bc_with_cartesian>
+                  <z_component>
+                    <constant>
+                      <real_value rank="0">0.0</real_value>
+                    </constant>
+                  </z_component>
+                </align_bc_with_cartesian>
+              </type>
+            </boundary_conditions>
+            <boundary_conditions name="Pipe">
+              <surface_ids>
+                <integer_value shape="1" rank="1">6</integer_value>
+              </surface_ids>
+              <type name="dirichlet">
+                <align_bc_with_cartesian>
+                  <x_component>
+                    <constant>
+                      <real_value rank="0">0.0</real_value>
+                    </constant>
+                  </x_component>
+                  <y_component>
+                    <constant>
+                      <real_value rank="0">0.0</real_value>
+                    </constant>
+                  </y_component>
+                  <z_component>
+                    <constant>
+                      <real_value rank="0">0.0</real_value>
+                    </constant>
+                  </z_component>
+                </align_bc_with_cartesian>
+              </type>
+            </boundary_conditions>
+          </algorithm>
+          <mesh name="CoordinateMesh"/>
+          <output/>
+          <stat>
+            <include_in_stat/>
+          </stat>
+          <convergence>
+            <include_in_convergence/>
+          </convergence>
+          <detectors>
+            <include_in_detectors/>
+          </detectors>
+          <steady_state>
+            <include_in_steady_state/>
+          </steady_state>
+          <consistent_interpolation/>
+        </diagnostic>
+      </vector_field>
+    </mesh_movement>
+    <hr_adaptivity>
+      <period_in_timesteps>
+        <integer_value rank="0">10</integer_value>
+      </period_in_timesteps>
+      <maximum_number_of_nodes>
+        <integer_value rank="0">100000</integer_value>
+      </maximum_number_of_nodes>
+      <anisotropic_gradation>
+        <tensor_field name="Gamma">
+          <anisotropic_symmetric>
+            <constant>
+              <real_value symmetric="true" dim2="dim" shape="3 3" dim1="dim" rank="2">2.0 0.0 0.0 0.0 2.0 0.0 0.0 0.0 2.0</real_value>
+            </constant>
+          </anisotropic_symmetric>
+        </tensor_field>
+      </anisotropic_gradation>
+      <tensor_field name="MinimumEdgeLengths">
+        <anisotropic_symmetric>
+          <python>
+            <string_value lines="20" type="code" language="python">def val(X,t):
+  from numpy import sqrt
+  #r = sqrt((X[0]-3.85)**2 +(X[1]-1.8)**2)
+  r = sqrt((X[0]-3.85)**2 +(X[2]-0.30)**2)
+  #if r &lt; 0.2:
+  if r &lt; 0.30:
+    a = 0.01  
+  elif r &lt; 0.95:
+    a = 0.01 + 0.14*(r-0.30)/0.75
+  else:
+    a = 0.1
+  b = 0.1  
+  return [[a,0,0],[0,b,0],[0,0,a]]</string_value>
+          </python>
+        </anisotropic_symmetric>
+      </tensor_field>
+      <tensor_field name="MaximumEdgeLengths">
+        <anisotropic_symmetric>
+          <python>
+            <string_value lines="20" type="code" language="python">def val(X,t):
+  from numpy import sqrt
+  #r = sqrt((X[0]-3.85)**2 +(X[1]-1.8)**2)
+  r = sqrt((X[0]-3.85)**2 +(X[2]-0.30)**2)
+  #if r &lt; 0.2:
+  if r &lt; 0.30:
+    a = 0.03
+  elif r &lt; 0.95:
+    a = 0.03 + 0.14*(r-0.30)/0.75
+  else:
+    a = 0.3
+  b = 0.1
+  return [[a,0,0],[0,b,0],[0,0,a]]</string_value>
+          </python>
+        </anisotropic_symmetric>
+      </tensor_field>
+      <aspect_ratio_bound>
+        <real_value rank="0">10</real_value>
+      </aspect_ratio_bound>
+      <adapt_at_first_timestep>
+        <number_of_adapts>
+          <integer_value rank="0">3</integer_value>
+        </number_of_adapts>
+      </adapt_at_first_timestep>
+      <zoltan_options>
+        <partitioner>
+          <metis/>
+        </partitioner>
+        <final_partitioner>
+          <metis/>
+        </final_partitioner>
+      </zoltan_options>
+    </hr_adaptivity>
+  </mesh_adaptivity>
+</fluidity_options>
